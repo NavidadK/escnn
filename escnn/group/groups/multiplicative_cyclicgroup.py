@@ -316,11 +316,11 @@ class MultiplicativeCyclicGroup(Group):
         irr = self.irrep(*irrep)
 
         sg, _, _ = self.subgroup(id)
+        change_of_basis = np.eye(irr.size)
 
-        k = irrep[0]
-
-        change_of_basis = np.eye(1)
-        irreps = [(k,)]
+        f = irr.attributes["frequency"] % id
+        r = (f,)
+        irreps = [r]
 
         return change_of_basis, irreps
 
@@ -333,7 +333,7 @@ class MultiplicativeCyclicGroup(Group):
         N = self.order()
 
         # Build all the Irreducible Representations
-        for k in range(0, int(N // 2) + 1):
+        for k in range(0, N):
             self.irrep(k)
             
         # Build all Representations
@@ -357,22 +357,6 @@ class MultiplicativeCyclicGroup(Group):
     @property
     def trivial_representation(self) -> Representation:
         return self.representations['irrep_0']
-    
-    @staticmethod
-    def _build_irrep_mul(k: int):
-        def irrep(element: GroupElement, k: int = k):
-            exp = element.to('int') - element.group.size // 2
-            value = element.group.basis ** exp
-            return np.array([[value ** k]])
-        return irrep
-    
-    @staticmethod
-    def _build_char_mul(k: int):
-        def character(element: GroupElement, k=k):
-            exp = element.to('int') - element.group.size // 2
-            value = element.group.basis ** exp
-            return value ** k
-        return character
 
     def irrep(self, k: int):
         id = (k,)
@@ -408,7 +392,7 @@ class MultiplicativeCyclicGroup(Group):
         This method is useful to easily specify the irreps to be used to instantiate certain objects, e.g. the
         Fourier based non-linearity :class:`~escnn.nn.FourierPointwise`.
         """
-        assert 0 <= L <= self.order() // 2, (L, self.order())
+        assert 0 <= L <= self.order(), (L, self.order())
         return [(l,) for l in range(L+1)]
 
     def _clebsh_gordan_coeff(self, m, n, j) -> np.ndarray:
@@ -420,124 +404,58 @@ class MultiplicativeCyclicGroup(Group):
         rho_n = self.irrep(n)
         rho_j = self.irrep(j)
 
-        if m == 0 or n == 0:
-            if j == m + n:
-                return np.eye(rho_j.size).reshape(rho_m.size, rho_n.size, 1, rho_j.size)
-            else:
-                return np.zeros((rho_m.size, rho_n.size, 0, rho_j.size))
-        elif (self.N % 2 == 0) and (m == self.N//2 or n == self.N//2):
-            if j == m + n:
-                return np.eye(rho_j.size).reshape(rho_m.size, rho_n.size, 1, rho_j.size)
-            elif j == (self.N -m - n):
-                cg = np.eye(rho_j.size)
-                if rho_j.size > 1:
-                    cg[:, 1] *= -1
-                return cg.reshape(rho_m.size, rho_n.size, 1, rho_j.size)
-            else:
-                return np.zeros((rho_m.size, rho_n.size, 0, rho_j.size))
+        # In multiplicative group, all irreps are 1D
+        if j == (m + n) % self.size:
+            # 1x1 CG coefficient
+            return np.ones((rho_m.size, rho_n.size, 1, rho_j.size))
         else:
-            cg = np.array([
-                [1., 0., 1., 0.],
-                [0., 1., 0., 1.],
-                [0., -1., 0., 1.],
-                [1., 0., -1., 0.],
-            ]) / np.sqrt(2)
-            if j == m + n:
-                cg = cg[:, 2:]
-            elif j == self.N - m - n:
-                cg = cg[:, 2:]
-                cg[:, 1] *= -1
-            elif j == m - n:
-                cg = cg[:, :2]
-            elif j == n - m:
-                cg = cg[:, :2]
-                cg[:, 1] *= -1
-            else:
-                cg = np.zeros((rho_m.size, rho_n.size, 0, rho_j.size))
-
-            return cg.reshape(rho_n.size, rho_m.size, -1, rho_j.size).transpose(1, 0, 2, 3)
+            # no contribution
+            return np.zeros((rho_m.size, rho_n.size, 0, rho_j.size))
 
     def _tensor_product_irreps(self, J: int, l: int) -> List[Tuple[Tuple, int]]:
         J, = self.get_irrep_id(J)
         l, = self.get_irrep_id(l)
     
-        if J == 0 or l == 0:
-            return [
-                ((l + J,), 1)
-            ]
-        elif (self.N % 2 == 0) and (J == self.N // 2 or l == self.N // 2):
-            j = (J + l) if (J+l <= self.N//2) else (self.N - J - l)
-            return [
-                ((j,), 1)
-            ]
-        elif l == J:
-            j = (J + l) if (J+l <= self.N//2) else (self.N - J - l)
-            m = 1 if j < self.N/2 else 2
-            return [
-                ((0,), 2),
-                ((j,), m),
-            ]
-        else:
-            j = (J + l) if (J+l <= self.N//2) else (self.N - J - l)
-            m = 1 if j < self.N/2 else 2
-            return [
-                ((np.abs(l - J),), 1),
-                ((j,), m),
-            ]
+        # In the multiplicative group all irreps are 1D and combine by addition mod N
+        j = (J + l) % self.size
+
+        return [
+            ((j,), 1)
+        ]
 
     _cached_group_instances = {}
     
     @classmethod
-    def _generator(cls, N: int) -> 'CyclicGroup':
+    def _generator(cls, N: int) -> 'MultiplicativeCyclicGroup':
         if N not in cls._cached_group_instances:
-            cls._cached_group_instances[N] = CyclicGroup(N)
+            cls._cached_group_instances[N] = MultiplicativeCyclicGroup(N)
         
         return cls._cached_group_instances[N]
 
 
-def _build_irrep_cn(k: int):
-    def irrep(element: GroupElement, k:int =k) -> np.ndarray:
-        if k == 0:
-            return np.eye(1)
-        
-        n = element.group.order()
-
-        if n % 2 == 0 and k == int(n / 2):
-            # 1 dimensional Irreducible representation (only for even order groups)
-            return np.array([[np.cos(k * element.to('radians'))]])
-        else:
-            # 2 dimensional Irreducible Representations
-            return utils.psi(element.to('radians'), k=k)
-        
+def _build_irrep_mul(k: int):
+    def irrep(element: GroupElement, k: int = k):
+        exp = element.to('int') - element.group.size // 2
+        value = element.group.basis ** exp
+        return np.array([[value ** k]])
     return irrep
 
-
-def _build_char_cn(k: int):
-    
-    def character(element: GroupElement, k=k) -> float:
-        if k == 0:
-            return 1.
-        
-        n = element.group.order()
-        
-        if n % 2 == 0 and k == int(n / 2):
-            # 1 dimensional Irreducible representation (only for even order groups)
-            return np.cos(k * element.to('radians'))
-        else:
-            # 2 dimensional Irreducible Representations
-            return 2*np.cos(k * element.to('radians'))
-    
+def _build_char_mul(k: int):
+    def character(element: GroupElement, k=k):
+        exp = element.to('int') - element.group.size // 2
+        value = element.group.basis ** exp
+        return value ** k
     return character
 
 
-def _build_parent_map(G: CyclicGroup, order: int):
+def _build_parent_map(G: MultiplicativeCyclicGroup, order: int):
     def parent_mapping(e: GroupElement, G: Group = G, order=order) -> GroupElement:
         return G.element(e.to('int') * G.order() // order)
     
     return parent_mapping
 
 
-def _build_child_map(G: CyclicGroup, sg: CyclicGroup):
+def _build_child_map(G: MultiplicativeCyclicGroup, sg: MultiplicativeCyclicGroup):
     assert G.order() % sg.order() == 0
     
     def child_mapping(e: GroupElement, G=G, sg: Group = sg) -> GroupElement:
