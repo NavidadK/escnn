@@ -21,6 +21,7 @@ class MultiplicativeCyclicGroup(Group):
     PARAM = 'int'
     PARAMETRIZATIONS = [
         'int',          # integer in 0, 1, ..., N-1
+        'scalar',       # scalar in b^(k-N//2), k=0,...,N-1
         # 'radians',      # real in 0., 2pi/N, ... i*2pi/N, ...
         # 'C',            # point in the unit circle (i.e. cos and sin of 'radians')
         # 'MAT',          # 2x2 rotation matrix
@@ -54,18 +55,21 @@ class MultiplicativeCyclicGroup(Group):
         assert (isinstance(N, int) and N > 0), N
         assert isinstance(basis, float) and basis > 0, basis
         
-        super(MultiplicativeCyclicGroup, self).__init__("C%d" % N, False, True)
-        
+        super().__init__("MC%d" % N, False, True)
+        print('C3')
         self.N = N
-        self.basis = basis
+        self.size = N
+        self.basis = basis  # np.exp(2j * np.pi / N)
 
         # int: for consistency with the DihedralGroup, store the number of rotations also in this attribute
         # self.rotation_order = N # should keep it?
 
-        self._elements = [basis ** ((i % N) - (N // 2)) for i in range(N)]
-        # self._elements_names = ['e'] + ['r%d' % i for i in range(1, N)]
+        #self._elements = [basis ** ((i % N) - (N // 2)) for i in range(N)]
+        # self._elements = [MultiplicativeGroupElement(basis ** ((i % N) - (N // 2)), self) for i in range(N)]
+        self._elements = [self.element(i) for i in range(N)]
 
-        self._identity = self._elements[N // 2] # correct here? Just set identity=1.0 ?
+        # self._identity = self._elements[N // 2] # correct here? Just set identity=1.0 ?
+        self._identity = self._elements[N // 2]
         
         self._build_representations()
 
@@ -192,13 +196,13 @@ class MultiplicativeCyclicGroup(Group):
     def _change_param(self, element, p_from: str, p_to: str):
         # from integer to scalar
         if p_from == 'int' and p_to == 'scalar':
-            half = self.size // 2
-            return self.basis ** ((element % self.size) - half)
+            half = self.N // 2
+            return self.basis ** ((element % self.N) - half)
         # from scalar to integer
         elif p_from == 'scalar' and p_to == 'int':
-            half = self.size // 2
+            half = self.N // 2
             log_val = np.log(element) / np.log(self.basis)
-            idx = int(round(log_val + half)) % self.size
+            idx = int(round(log_val + half)) % self.N
             return idx
         # identity
         elif p_from == p_to:
@@ -340,6 +344,7 @@ class MultiplicativeCyclicGroup(Group):
 
         # add all the irreps to the set of representations already built for this group
         self.representations.update(**{irr.name : irr for irr in self.irreps()})
+        print(self.representations)
 
         # build the regular representation
         self.representations['regular'] = self.regular_representation
@@ -363,11 +368,11 @@ class MultiplicativeCyclicGroup(Group):
 
         if id not in self._irreps:
 
-            assert 0 <= k < self.size, (k, self.size)
+            assert 0 <= k < self.N, (k, self.N)
             name = f"irrep_{k}"
 
-            irrep = self._build_irrep_mul(k)
-            character = self._build_char_mul(k)
+            irrep = _build_irrep_mul(k)
+            character = _build_char_mul(k)
 
             supported_nonlinearities = ['pointwise', 'norm']
 
@@ -405,7 +410,7 @@ class MultiplicativeCyclicGroup(Group):
         rho_j = self.irrep(j)
 
         # In multiplicative group, all irreps are 1D
-        if j == (m + n) % self.size:
+        if j == (m + n) % self.N:
             # 1x1 CG coefficient
             return np.ones((rho_m.size, rho_n.size, 1, rho_j.size))
         else:
@@ -417,7 +422,7 @@ class MultiplicativeCyclicGroup(Group):
         l, = self.get_irrep_id(l)
     
         # In the multiplicative group all irreps are 1D and combine by addition mod N
-        j = (J + l) % self.size
+        j = (J + l) % self.N
 
         return [
             ((j,), 1)
@@ -468,5 +473,33 @@ def _build_child_map(G: MultiplicativeCyclicGroup, sg: MultiplicativeCyclicGroup
             return sg.element(i // ratio)
     
     return child_mapping
+
+class MultiplicativeGroupElement(GroupElement):
+    def __init__(self, value: float, group):
+        super().__init__(value, group)
+        self.value = value
+
+    def __matmul__(self, other):
+        return MultiplicativeGroupElement(self.value * other.value, self.group)
+
+    # def __matmul__(self, other):
+    #     product = self.value * other.value
+    #     # find the corresponding element in the group's element list
+    #     for e in self.group._elements:
+    #         if abs(e.value - product) < 1e-12:
+    #             return e
+    #     raise ValueError("Resulting element not found in group")
+
+    # def __repr__(self):
+    #     return f"{self.value}"
+    
+    # def to(self, param='int'):
+    #     if param == 'int':
+    #         # map value to integer index in the cyclic group
+    #         return self.group._elements.index(self.value)
+    #     elif param == 'float':
+    #         return self.value
+    #     else:
+    #         raise ValueError(param)
 
 
