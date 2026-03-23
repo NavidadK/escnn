@@ -12,6 +12,7 @@ from .steerable_basis import SteerableKernelBasis, IrrepBasis
 from .wignereckart_solver import WignerEckartBasis, RestrictedWignerEckartBasis
 
 from .r2 import *
+from .r2_rothue import *
 from .r3 import *
 
 
@@ -54,6 +55,7 @@ __all__ = [
     'PointBasis',
     "SphericalShellsBasis",
     "CircularShellsBasis",
+    "CircularShellsBasisO2XCN",
     'GaussianRadialProfile',
     "SparseOrbitBasis",
     "SparseOrbitBasisWithIcosahedralSymmetry",
@@ -70,6 +72,9 @@ __all__ = [
     "kernels_SO2_act_R2",
     "kernels_SO2_subgroup_act_R2",
     "kernels_O2_subgroup_act_R2",
+    "kernels_O2xCN_subgroup_act_R2",
+    "kernels_HueCN_act_R2",
+    "kernels_CNxCN_act_R2",
     # R3 bases
     "kernels_O3_act_R3",
     "kernels_SO3_act_R3",

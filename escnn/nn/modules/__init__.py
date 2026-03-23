@@ -82,6 +82,7 @@ from .identity_module import IdentityModule
 from .masking_module import MaskModule
 
 from .harmonic_polynomial_r3 import HarmonicPolynomialR3
+from .hue_phase import HSVHuePhaseEncoder, HuePhaseLiftGroupConv2D
 
 
 __all__ = [
@@ -150,4 +151,6 @@ __all__ = [
     "IdentityModule",
     "MaskModule",
     "HarmonicPolynomialR3",
+    "HSVHuePhaseEncoder",
+    "HuePhaseLiftGroupConv2D",
 ]

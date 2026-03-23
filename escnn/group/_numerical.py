@@ -69,6 +69,9 @@ def null(A: Union[np.matrix, sparse.linalg.LinearOperator],
     else:
         if randomized_svd is not None:
             k = min(A.shape)
+            # sklearn>=1.4 does not accept np.matrix inputs
+            if isinstance(A, np.matrix):
+                A = np.asarray(A)
             u, s, vh = randomized_svd(A, n_components=k, random_state=None)
         else:
             u, s, vh = linalg.svd(A, full_matrices=False)
@@ -804,5 +807,4 @@ def decompose_representation_general(
         assert (np.allclose(rho, change_of_basis @ P @ change_of_basis_t)), "Error at element {}".format(g)
 
     return change_of_basis, irreps_multiplicities
-
 
