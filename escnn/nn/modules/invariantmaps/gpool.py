@@ -19,7 +19,7 @@ __all__ = ["GroupPooling", "MaxPoolChannels"]
 
 class GroupPooling(EquivariantModule):
     
-    def __init__(self, in_type: FieldType, **kwargs):
+    def __init__(self, in_type: FieldType, mode: str = "max", **kwargs):
         r"""
         
         Module that implements *group pooling*.
@@ -35,7 +35,7 @@ class GroupPooling(EquivariantModule):
         
         Args:
             in_type (FieldType): the input field type
-            
+            mode (str): the pooling mode ('max' or 'mean')
         """
         assert isinstance(in_type.gspace, GSpace)
         
@@ -47,6 +47,9 @@ class GroupPooling(EquivariantModule):
 
         self.space = in_type.gspace
         self.in_type = in_type
+
+        assert mode in ['max', 'avg'], 'mode must be "max" or "avg"'
+        self.mode = mode
         
         # build the output representation substituting each input field with a trivial representation
         self.out_type = FieldType(self.space, [self.space.trivial_repr] * len(in_type))
@@ -114,8 +117,11 @@ class GroupPooling(EquivariantModule):
             # split the channel dimension in 2 dimensions, separating fields
             fm = fm.view(b, -1, s, *spatial_shape)
             
-            max_activations, _ = torch.max(fm, 2)
-            
+            if self.mode == 'max':
+                max_activations, _ = torch.max(fm, 2)
+            elif self.mode == 'avg':
+                max_activations = torch.mean(fm, 2)
+
             if contiguous:
                 output[:, out_indices[0]:out_indices[1], ...] = max_activations
             else:
